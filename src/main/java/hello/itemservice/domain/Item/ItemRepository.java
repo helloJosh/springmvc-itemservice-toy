@@ -1,4 +1,4 @@
-package hello.itemservice.domain;
+package hello.itemservice.domain.Item;
 
 import org.springframework.stereotype.Repository;
 
@@ -31,6 +31,10 @@ public class ItemRepository {
         findItem.setItemName(updateParam.getItemName());
         findItem.setPrice(updateParam.getPrice());
         findItem.setQuantity(updateParam.getQuantity());
+        findItem.setOpen(updateParam.getOpen());
+        findItem.setRegions(updateParam.getRegions());
+        findItem.setDeliveryCode(updateParam.getDeliveryCode());
+        findItem.setItemType(updateParam.getItemType());
     }
 
     public void clearStore(){
