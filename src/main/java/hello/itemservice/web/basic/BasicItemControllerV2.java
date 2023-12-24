@@ -9,19 +9,17 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Slf4j
 @Controller
-@RequestMapping("/form/items")
+@RequestMapping("/form/v2/items")
 @RequiredArgsConstructor
-public class BasicItemController {
+public class BasicItemControllerV2 {
     private final ItemRepository itemRepository;
 
     @ModelAttribute("regions")
@@ -52,20 +50,20 @@ public class BasicItemController {
     public String items(Model model){
         List<Item> items = itemRepository.findAll();
         model.addAttribute("items", items);
-        return "form/items";
+        return "form/v2/items";
     }
 
     @GetMapping("/{itemId}")
     public String item(@PathVariable long itemId, Model model){
         Item item = itemRepository.findById(itemId);
         model.addAttribute("item", item);
-        return "form/item";
+        return "form/v2/item";
     }
 
     @GetMapping("/add")
     public String addForm(Model model){
         model.addAttribute("item", new Item());
-        return "form/addForm";
+        return "form/v2/addForm";
     }
     //@PostMapping("/add")
     public String addItemV1(@RequestParam String itemName,
@@ -80,41 +78,66 @@ public class BasicItemController {
         itemRepository.save(item);
         model.addAttribute("item", item);
 
-        return "form/item";
+        return "form/v2/item";
     }
     //@PostMapping("/add")
     public String addItemV2(@ModelAttribute("item") Item item){
         itemRepository.save(item);
         //model.addAttribute("item", item); 자동추가 생략가능
 
-        return "form/item";
+        return "form/v2/item";
     }
    // @PostMapping("/add")
     public String addItemV3(@ModelAttribute Item item){
         itemRepository.save(item);
         //model.addAttribute("item", item); 자동추가 생략가능
 
-        return "form/item";
+        return "form/v2/item";
     }
     //@PostMapping("/add")
     public String addItemV4(Item item){
         itemRepository.save(item);
         //model.addAttribute("item", item); 자동추가 생략가능
 
-        return "form/item";
+        return "form/v2/item";
     }
     //@PostMapping("/add")
     public String addItemV5(Item item){
         itemRepository.save(item);
         //model.addAttribute("item", item); 자동추가 생략가능
 
-        return "redirect:/form/items/"+item.getId();
+        return "redirect:/form/v2/items/"+item.getId();
     }
     @PostMapping("/add")
-    public String addItemV6(Item item, RedirectAttributes redirectAttributes){
-        log.info("item.open={}", item.getOpen());
-        log.info("item.regions ={}", item.getRegions());
-        log.info("item.itemType={}", item.getItemType());
+    public String addItemV6(@ModelAttribute Item item, RedirectAttributes redirectAttributes, Model model){
+        //검증 오류 결과를 보관
+        Map<String, String> errors = new HashMap<>();
+
+        //검증 로직
+        if(!StringUtils.hasText(item.getItemName())){
+            errors.put("itemName", "상품 이름은 필수입니다.");
+        }
+        if(item.getPrice() == null || item.getPrice()<1000 || item.getPrice() >1000000){
+            errors.put("price", "가격은 1,000~1,000,000까지 허용합니다.");
+        }
+        if(item.getQuantity()==null || item.getQuantity()>=9999){
+            errors.put("quantity","수량은 최대 9,999까지 허용합니다.");
+        }
+
+        //특정 필드가 아닌 복합룰 검증
+        if(item.getPrice() != null && item.getQuantity()!= null){
+            int resultPrice = item.getPrice() * item.getQuantity();
+            if(resultPrice < 10000){
+                errors.put("globalError", "가격*수량의 합은 10,000원 이상이어야합니다. 현재 값 = "+resultPrice);
+            }
+        }
+
+        // 검증에 실패하면 다시 입력 폼으로
+        if(!errors.isEmpty()){
+            log.info("errors = {}", errors);
+            model.addAttribute("errors", errors);
+            return "form/v2/addform";
+        }
 
         Item savedItem = itemRepository.save(item);
 
@@ -122,7 +145,7 @@ public class BasicItemController {
         redirectAttributes.addAttribute("status", true);
         //model.addAttribute("item", item); 자동추가 생략가능
 
-        return "redirect:/form/items/{itemId}";
+        return "redirect:/form/v1/items/{itemId}";
     }
 
 
@@ -130,12 +153,12 @@ public class BasicItemController {
     public String editForm(@PathVariable Long itemId, Model model){
         Item item = itemRepository.findById(itemId);
         model.addAttribute("item", item);
-        return "form/editForm";
+        return "form/v2/editForm";
     }
     @PostMapping("/{itemId}/edit")
     public String edit(@PathVariable Long itemId, @ModelAttribute Item item){
         itemRepository.update(itemId,item);
-        return "redirect:/form/items/{itemId}";
+        return "redirect:/form/v2/items/{itemId}";
     }
 
 
