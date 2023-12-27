@@ -6,12 +6,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.util.StringUtils;
 import org.springframework.validation.BindingResult;
-import org.springframework.validation.FieldError;
-import org.springframework.validation.ObjectError;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
@@ -22,9 +18,9 @@ import java.util.Map;
 
 @Slf4j
 @Controller
-@RequestMapping("/form/v3/items")
+@RequestMapping("/form/v4/items")
 @RequiredArgsConstructor
-public class BasicItemControllerV3 {
+public class BasicItemControllerV4 {
     private final ItemRepository itemRepository;
 
     @ModelAttribute("regions")
@@ -55,20 +51,20 @@ public class BasicItemControllerV3 {
     public String items(Model model){
         List<Item> items = itemRepository.findAll();
         model.addAttribute("items", items);
-        return "form/v3/items";
+        return "form/v4/items";
     }
 
     @GetMapping("/{itemId}")
     public String item(@PathVariable(name = "itemId") long itemId, Model model){
         Item item = itemRepository.findById(itemId);
         model.addAttribute("item", item);
-        return "form/v3/item";
+        return "form/v4/item";
     }
 
     @GetMapping("/add")
     public String addForm(Model model){
         model.addAttribute("item", new Item());
-        return "form/v3/addForm";
+        return "form/v4/addForm";
     }
 
     //@PostMapping("/add")
@@ -76,7 +72,7 @@ public class BasicItemControllerV3 {
         // 검증에 실패하면 다시 입력 폼으로
         if(bindingResult.hasErrors()){
             log.info("errors = {}", bindingResult);
-            return "form/v3/addform";
+            return "form/v4/addform";
         }
 
         Item savedItem = itemRepository.save(item);
@@ -85,14 +81,14 @@ public class BasicItemControllerV3 {
         redirectAttributes.addAttribute("status", true);
         //model.addAttribute("item", item); 자동추가 생략가능
 
-        return "redirect:/form/v3/items/{itemId}";
+        return "redirect:/form/v4/items/{itemId}";
     }
     @PostMapping("/add")
     public String addItemV2(@Validated(SaveCheck.class) @ModelAttribute Item item, BindingResult bindingResult, RedirectAttributes redirectAttributes, Model model){
         // 검증에 실패하면 다시 입력 폼으로
         if(bindingResult.hasErrors()){
             log.info("errors = {}", bindingResult);
-            return "form/v3/addform";
+            return "form/v4/addform";
         }
 
         Item savedItem = itemRepository.save(item);
@@ -101,14 +97,14 @@ public class BasicItemControllerV3 {
         redirectAttributes.addAttribute("status", true);
         //model.addAttribute("item", item); 자동추가 생략가능
 
-        return "redirect:/form/v3/items/{itemId}";
+        return "redirect:/form/v4/items/{itemId}";
     }
 
     @GetMapping("/{itemId}/edit")
     public String editForm(@PathVariable(name = "itemId") Long itemId, Model model){
         Item item = itemRepository.findById(itemId);
         model.addAttribute("item", item);
-        return "form/v3/editForm";
+        return "form/v4/editForm";
     }
     @PostMapping("/{itemId}/edit")
     public String edit(@PathVariable(name = "itemId") Long itemId, @Validated @ModelAttribute Item item, BindingResult bindingResult){
@@ -121,11 +117,11 @@ public class BasicItemControllerV3 {
         }
         if(bindingResult.hasErrors()){
             log.info("errors= {}", bindingResult);
-            return "form/v3/editForm";
+            return "form/v4/editForm";
         }
 
         itemRepository.update(itemId,item);
-        return "redirect:/form/v3/items/{itemId}";
+        return "redirect:/form/v4/items/{itemId}";
     }
     @PostMapping("/{itemId}/edit")
     public String editV2(@PathVariable(name = "itemId") Long itemId, @Validated(UpdatedCheck.class) @ModelAttribute Item item, BindingResult bindingResult){
@@ -138,11 +134,11 @@ public class BasicItemControllerV3 {
         }
         if(bindingResult.hasErrors()){
             log.info("errors= {}", bindingResult);
-            return "form/v3/editForm";
+            return "form/v4/editForm";
         }
 
         itemRepository.update(itemId,item);
-        return "redirect:/form/v3/items/{itemId}";
+        return "redirect:/form/v4/items/{itemId}";
     }
 
 
