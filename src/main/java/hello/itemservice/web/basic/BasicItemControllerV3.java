@@ -110,7 +110,7 @@ public class BasicItemControllerV3 {
         model.addAttribute("item", item);
         return "form/v3/editForm";
     }
-    @PostMapping("/{itemId}/edit")
+    //@PostMapping("/{itemId}/edit")
     public String edit(@PathVariable(name = "itemId") Long itemId, @Validated @ModelAttribute Item item, BindingResult bindingResult){
         //특정 필드가 아닌 복합룰 검증
         if(item.getPrice() != null && item.getQuantity()!= null){
