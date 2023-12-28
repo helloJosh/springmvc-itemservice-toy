@@ -119,14 +119,4 @@ public class BasicItemControllerV1 {
         itemRepository.update(itemId,item);
         return "redirect:/form/v1/items/{itemId}";
     }
-
-
-    /**
-     *  테스트용 데이터 추가
-     */
-    @PostConstruct
-    public void init(){
-        itemRepository.save(new Item("itemA", 10000, 10));
-        itemRepository.save(new Item("itemB", 20000, 20));
-    }
 }
