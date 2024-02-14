@@ -740,3 +740,310 @@ public String addItemV6(Item item, RedirectAttributes redirectAttributes) {
 * `th:if` : 해당 조건이 참이면 실행
 * `${param.status}` : 타임리프에서 쿼리 파라미터를 편리하게 조회하는 기능
   + 원래는 컨트롤러에서 모델에 직접 담고 값을 꺼내야 한다. 그런데 쿼리 파라미터는 자주 사용해서 타임리프에서 직접 지원한다.
+
+
+***
+# 9. 입력 폼 처리
+* `th:object` : 커맨드 객체를 지정한다.
+* `*{...}` : 선택 변수 식이라고 한다. `th:oject`에서 선택한 객체에 접근한다.
+* `th:field` : HTML 태그의 `id`,`name`,`value` 속성을 자동으로 처리해준다.
+
+##### 렌더링 전
+`<input type="text" th:field="*{itemName}" />`
+##### 렌더링 후
+`<input type="text" id="itemName" name="itemName" th:value="*{itemName}" />`
+
+##### 사용예시 - 등록 폼
+```java
+@GetMapping("/add")
+public String addForm(Model model) {
+  model.addAttribute("item", new Item());
+  return "form/addForm";
+}
+```
+* 새로운 아이템 객체 전달
+```html
+<form action="item.html" th:action th:object="${item}" method="post">
+  <div>
+    <label for="itemName">상품명</label>
+    <input type="text" id="itemName" th:field="*{itemName}" class="formcontrol" placeholder="이름을 입력하세요">
+  </div>
+  <div>
+    <label for="price">가격</label>
+    <input type="text" id="price" th:field="*{price}" class="form-control" placeholder="가격을 입력하세요">
+  </div>
+  <div>
+    <label for="quantity">수량</label>
+    <input type="text" id="quantity" th:field="*{quantity}" class="formcontrol" placeholder="수량을 입력하세요">
+  </div>
+```
+* `th:object="${item}"`: `<form>`에서 사용할 객체를 지정한다. 객체 지정시, 선택 변수식 `(*{...})`을 적용할 수 있다.
+* `th:field="*{itemName}"`
+    + `*{itemName}`는 선택 변수 식을 사용, `${item.itemName}`과 같다. 앞서 `th:object`로 `item`을 선택했기 때문에 선택 변수식을 사용할 수 있다.
+    + `th:field`는 `id`, `name`, `value` 속성을 모두 자동으로 만들어 준다.
+        * `id` : `th:field`에서 지정한 변수 이름과 같다.
+        * `name` : `th:field`에서 지정한 변수 이름과 같다.
+        * `value` : `th:field`에서 지정한 변수의 값을 사용한다.
+     
+##### 사용예시 - 수정폼
+``` java
+@GetMapping("/{itemId}/edit")
+public String editForm(@PathVariable Long itemId, Model model) {
+  Item item = itemRepository.findById(itemId);
+  model.addAttribute("item", item);
+  return "form/editForm";
+}
+```
+* 찾은 아이템 객체 전달
+``` html
+<form action="item.html" th:action th:object="${item}" method="post">
+  <div>
+    <label for="id">상품 ID</label>
+    <input type="text" id="id" th:field="*{id}" class="form-control" readonly>
+  </div>
+  <div>
+    <label for="itemName">상품명</label>
+    <input type="text" id="itemName" th:field="*{itemName}" class="formcontrol">
+  </div>
+  <div>
+    <label for="price">가격</label>
+    <input type="text" id="price" th:field="*{price}" class="form-control">
+  </div>
+  <div>
+    <label for="quantity">수량</label>
+    <input type="text" id="quantity" th:field="*{quantity}" class="formcontrol">
+  </div>
+```
+* 수정폼은 `id`,`name`,`value` 모두 신경 써야했지만 `th:field` 덕분에 자동으로 처리
+* 렌더링 전
+  + `<input type="text" id="itemName" th:field="*{itemName}" class="form-control">`
+* 렌더링 후
+  + `<input type="text" id="itemName" class="form-control" name="itemName" value="itemA">`
+
+***
+# 10. 체크박스 - 단일1
+##### 체크 박스 단일 예시
+```html
+<!-- single checkbox -->
+<div>판매 여부</div>
+<div>
+  <div class="form-check">
+    <input type="checkbox" id="open" name="open" class="form-check-input">
+    <label for="open" class="form-check-label">판매 오픈</label>
+  </div>
+</div>
+```
+```java
+@Slf4j
+@PostMapping("/add")
+public String addItem(Item item, RedirectAttributes redirectAttributes) {
+  log.info("item.open={}", item.getOpen());
+  ...중략...
+}
+```
+##### 실행 로그
+```java
+FormItemController : item.open=true //체크 박스를 선택하는 경우
+FormItemController : item.open=null //체크 박스를 선택하지 않는 경우
+```
+* form에서 `open=on`이라는 값을 넘기는데. 스프링은 on이라는 문자를 true 타입으로 변환해서 가져오는 것을 알 수 있다.
+> 주의! html에서 체크 박스를 선택하지 않고 폼을 전송하면 `open`이라는 필드 자체가 서버로 전송 되지 않는다.
+
+##### 체크 해제 인식 히든 필드
+`<input type="hidden" name="_open" value="on"/>`
+```html
+<!-- single checkbox -->
+<div>판매 여부</div>
+<div>
+  <div class="form-check">
+    <input type="checkbox" id="open" name="open" class="form-check-input">
+    <input type="hidden" name="_open" value="on"/> <!-- 히든 필드 추가 -->
+    <label for="open" class="form-check-label">판매 오픈</label>
+  </div>
+</div>
+```
+* html checkbox는 선택이 안되면 클라이언트에서 서버로 값 자체를 보내지 않기 때문에 사용자가 의도적으로 체크되어 있던 값을 체크 해제해도 저장시 아무값도 넘어가지 않는다.
+* 이런 문제를 해결하기 위해 스프링 MVC는 히든 필드를 만들어서 `_open`처럼 기준 체크 박스 이름 앞에 언더 스코터를 붙여 전송하면 체크를 해제했다고 인식할 수 있다.
+* 체크 박스 체크
+  + `open=on&_open=on`
+  + 체크 박스를 체크하면 스프링 MVC가 `open` 에 값이 있는 것을 확인하고 사용한다. 이때 `_open` 은 무시한다.
+* 체크 박스 미 체크
+  + `_open=on`
+  + 체크 박스를 체크하지 않으면 스프링 MVC가 `_open` 만 있는 것을 확인하고, `open` 의 값이 체크되지 않았다고 인식한다.
+  + 이 경우 서버에서 `Boolean` 타입을 찍어보면 결과가 `null` 이 아니라 `false` 인 것을 확인할 수 있다. `log.info("item.open={}", item.getOpen());`
+ 
+***
+# 11. 체크박스 - 멀티
+* 체크 박스 멀티를 사용하여 하나 이상을 체크 할 수 있다.
+* 등록 지역
+  + 서울, 부산, 제주
+  + 체크 박스로 다중 선택할 수있는 기능
+ 
+##### @ModelAttribute의 특별한 사용법
+```java
+@ModelAttribute("regions")
+public Map<String, String> regions() {
+  Map<String, String> regions = new LinkedHashMap<>();
+  regions.put("SEOUL", "서울");
+  regions.put("BUSAN", "부산");
+  regions.put("JEJU", "제주");
+  return regions;
+}
+```
+* 등록폼, 상세화면, 수정폼에서 모두 서울, 부산, 제주라는 체크박스를 반복해서 보여줘야한다.
+* 각각의 컨트롤러에서 `model.addAttribute(...)`을 사용해서 체크박스를 구성하는 데이터를 반복해서 넣어줘야한다.
+* `@ModelAttribute` 는 이렇게 컨트롤러에 있는 별도의 메서드에 적용할 수 있다.
+* 이렇게하면 해당 컨트롤러를 요청할 때 `regions` 에서 반환한 값이 자동으로 모델( `model` )에 담기게 된다.
+> 물론 이렇게 사용하지 않고, 각각의 컨트롤러 메서드에서 모델에 직접 데이터를 담아서 처리해도 된다.
+
+```html
+<!-- multi checkbox -->
+<div>
+  <div>등록 지역</div>
+  <div th:each="region : ${regions}" class="form-check form-check-inline">
+    <input type="checkbox" th:field="*{regions}" th:value="${region.key}" class="form-check-input">
+    <label th:for="${#ids.prev('regions')}" th:text="${region.value}" class="form-check-label">서울</label>
+  </div>
+</div>
+```
+* `th:for="${#ids.prev('regions')}"`
+* 체크박스는 같은 이름의 여러 체크박스를 만들 수 있다. 그런데 문제는 이렇게 반복해서 HTML 태그를 생성할 때, 생성된 HTML 태그 속성에서 `name` 은 같아도 되지만, `id` 는 모두 달라야 한다. 따라서 타임리프는 체크박스를 `each` 루프 안에서 반복해서 만들 때 임의로 `1` , `2` , `3` 숫자를 뒤에 붙여준다.
+
+
+##### 생성 결과
+``` html
+<!-- multi checkbox -->
+<div>
+<div>등록 지역</div>
+  <div class="form-check form-check-inline">
+    <input type="checkbox" value="SEOUL" class="form-check-input" id="regions1" name="regions">
+    <input type="hidden" name="_regions" value="on"/>
+    <label for="regions1" class="form-check-label">서울</label>
+  </div>
+  <div class="form-check form-check-inline">
+    <input type="checkbox" value="BUSAN" class="form-check-input" id="regions2" name="regions">
+    <input type="hidden" name="_regions" value="on"/>
+    <label for="regions2" class="form-check-label">부산</label>
+  </div>
+  <div class="form-check form-check-inline">
+    <input type="checkbox" value="JEJU" class="form-check-input" id="regions3" name="regions">
+    <input type="hidden" name="_regions" value="on"/>
+    <label for="regions3" class="form-check-label">제주</label>
+  </div>
+</div>
+<!-- -->
+```
+* `<label for="id 값">` 에 지정된 `id` 가 `checkbox` 에서 동적으로 생성된 `regions1` , `regions2` , `regions3` 에 맞추어 순서대로 입력된 것을 확인할 수 있다.
+
+##### item.html 추가
+``` html
+<!-- multi checkbox -->
+<div>
+  <div>등록 지역</div>
+  <div th:each="region : ${regions}" class="form-check form-check-inline">
+    <input type="checkbox" th:field="${item.regions}" th:value="${region.key}" class="form-check-input" disabled>
+    <label th:for="${#ids.prev('regions')}" th:text="${region.value}" class="form-check-label">서울</label>
+  </div>
+</div>
+```
+##### editForm.html 추가
+```html
+<!-- multi checkbox -->
+<div>
+  <div>등록 지역</div>
+  <div th:each="region : ${regions}" class="form-check form-check-inline">
+    <input type="checkbox" th:field="${regions}" th:value="${region.key}" class="form-check-input">
+    <label th:for="${#ids.prev('regions')}" th:text="${region.value}" class="form-check-label">서울</label>
+  </div>
+</div>
+```
+
+***
+# 12. 라디오 버튼
+``` java
+@ModelAttribute("itemTypes")
+public ItemType[] itemTypes() {
+  return ItemType.values();
+}
+```
+* ModelAttribute 사용
+
+##### addForm.html
+```html
+<!-- radio button -->
+<div>
+  <div>상품 종류</div>
+  <div th:each="type : ${itemTypes}" class="form-check form-check-inline">
+    <input type="radio" th:field="*{itemType}" th:value="${type.name()}" class="form-check-input">
+    <label th:for="${#ids.prev('itemType')}" th:text="${type.description}" class="form-check-label">
+    BOOK
+    </label>
+  </div>
+</div>
+```
+* 라디오 버튼은 무조건 하나를 선택하게 되어있기 때문에 히든 필드를 사용할 필요가 없다
+
+
+```item.html
+<!-- radio button -->
+<div>
+  <div>상품 종류</div>
+  <div th:each="type : ${itemTypes}" class="form-check form-check-inline">
+    <input type="radio" th:field="${item.itemType}" th:value="${type.name()}" class="form-check-input" disabled>
+    <label th:for="${#ids.prev('itemType')}" th:text="${type.description}" class="form-check-label">
+    BOOK
+    </label>
+  </div>
+</div>
+```
+* `item.html` 에는 `th:object` 를 사용하지 않았기 때문에 `th:field` 부분에 `${item.itemType}` 으로 적어주어야 한다.
+
+##### editform.html
+```html
+<!-- radio button -->
+<div>
+  <div>상품 종류</div>
+  <div th:each="type : ${itemTypes}" class="form-check form-check-inline">
+    <input type="radio" th:field="*{itemType}" th:value="${type.name()}" class="form-check-input">
+    <label th:for="${#ids.prev('itemType')}" th:text="${type.description}" class="form-check-label">
+    BOOK
+    </label>
+  </div>
+</div>
+```
+
+##### 생성 결과
+``` html
+<!-- radio button -->
+<div>
+<div>상품 종류</div>
+  <div class="form-check form-check-inline">
+    <input type="radio" value="BOOK" class="form-check-input" id="itemType1" name="itemType">
+    <label for="itemType1" class="form-check-label">도서</label>
+  </div>
+
+  <div class="form-check form-check-inline">
+    <input type="radio" value="FOOD" class="form-check-input" id="itemType2" name="itemType" checked="checked">
+    <label for="itemType2" class="form-check-label">식품</label>
+  </div>
+
+  <div class="form-check form-check-inline">
+    <input type="radio" value="ETC" class="form-check-input" id="itemType3" name="itemType">
+    <label for="itemType3" class="form-check-label">기타</label>
+  </div>
+</div>
+```
+##### 타임리프에서 ENUM 직접 사용하기
+```java
+@ModelAttribute("itemTypes")
+public ItemType[] itemTypes() {
+  return ItemType.values();
+}
+```
+`<div th:each="type : ${T(hello.itemservice.domain.item.ItemType).values()}">`
+* 위와 같이 직접 접근
+
+
+***
+# 13. 셀렉트 박스
+
