@@ -412,8 +412,71 @@ public class ItemRepository {
   + 상품 이름을 선택하는 링크를 확인해보자.
   + 리터럴 대체 문법을 활용해서 간단히 사용할 수도 있다.
 
+##### 상품상세
+```html
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head>
+  <meta charset="utf-8">
+    <link href="../css/bootstrap.min.css" th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
+    <style>
+    .container {max-width: 560px;}
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="py-5 text-center">
+      <h2>상품 상세</h2>
+      </div>
 
+      <div>
+        <label for="itemId">상품 ID</label>
+        <input type="text" id="itemId" name="itemId" class="form-control" value="1" th:value="${item.id}" readonly>
+      </div>
+      <div>
+        <label for="itemName">상품명</label>
+        <input type="text" id="itemName" name="itemName" class="form-control" value="상품A" th:value="${item.itemName}" readonly>
+      </div>
 
+      <div>
+        <label for="price">가격</label>
+        <input type="text" id="price" name="price" class="form-control" value="10000" th:value="${item.price}" readonly>
+      </div>
+      <div>
+        <label for="quantity">수량</label>
+        <input type="text" id="quantity" name="quantity" class="form-control" value="10" th:value="${item.quantity}" readonly>
+      </div>
+
+      <hr class="my-4">
+      <div class="row">
+        <div class="col">
+          <button class="w-100 btn btn-primary btn-lg" onclick="location.href='editForm.html'" th:onclick="|location.href='@{/basic/items/{itemId}/ edit(itemId=${item.id})}'|" type="button">상품 수정</button>
+        </div>
+        <div class="col">
+          <button class="w-100 btn btn-secondary btn-lg" onclick="location.href='items.html'" th:onclick="|location.href='@{/basic/items}'|" type="button">목록으로</button>
+        </div>
+      </div>
+    </div> <!-- /container -->
+  </body>
+</html>
+```
+* 속성 변경 - `th:value="${item.id}`
+  + 모델에 있는 item 정보를 획득하고 프로퍼티 접근법으로 출력한다.(`item.getId()`)
+  + `value` 속성을 `th:value` 속성으로 변경한다.
+
+<br/>
+
+* 상품수정 링
+  + `th:onclick="|location.href='@{/basic/items/{itemId}/edit(itemId=${item.id})}'|"`
+
+<br/>
+
+* 목록으로 링크
+  + `th:onclick="|location.href='@{/basic/items}'|"`
+
+<br/>  
+
+##### 상품 등록 폼 
 
 
 
