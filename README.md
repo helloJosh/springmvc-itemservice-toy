@@ -1046,4 +1046,125 @@ public ItemType[] itemTypes() {
 
 ***
 # 13. 셀렉트 박스
+##### FormItemController 추가
+```java
+@ModelAttribute("deliveryCodes")
+public List<DeliveryCode> deliveryCodes() {
+List<DeliveryCode> deliveryCodes = new ArrayList<>();
+  deliveryCodes.add(new DeliveryCode("FAST", "빠른 배송"));
+  deliveryCodes.add(new DeliveryCode("NORMAL", "일반 배송"));
+  deliveryCodes.add(new DeliveryCode("SLOW", "느린 배송"));
+  return deliveryCodes;
+}
+```
+
+##### addForm.html
+```html
+<!-- SELECT -->
+<div>
+  <div>배송 방식</div>
+  <select th:field="*{deliveryCode}" class="form-select">
+    <option value="">==배송 방식 선택==</option>
+    <option th:each="deliveryCode : ${deliveryCodes}" th:value="${deliveryCode.code}" th:text="${deliveryCode.displayName}">FAST</option>
+  </select>
+</div>
+```
+
+##### item.html
+```html
+<div>
+<div>배송 방식</div>
+  <select th:field="${item.deliveryCode}" class="form-select" disabled>
+    <option value="">==배송 방식 선택==</option>
+    <option th:each="deliveryCode : ${deliveryCodes}" th:value="${deliveryCode.code}"th:text="${deliveryCode.displayName}">FAST</option>
+  </select>
+</div>
+<hr class="my-4">
+```
+* `item.html`에서는 `th:object`를 사용하지 않기 때문에 `th:feild` 부분에 `${item.deliveryCode}`으로 적어주어야한다.
+* `disabled`를 사용해서 상품 상세에서는 셀렉트 박스가 선택되지 않도록 했다.
+
+##### editForm.html
+```html
+<!-- SELECT -->
+<div>
+<div>배송 방식</div>
+  <select th:field="*{deliveryCode}" class="form-select">
+    <option value="">==배송 방식 선택==</option>
+    <option th:each="deliveryCode : ${deliveryCodes}" th:value="${deliveryCode.code}"th:text="${deliveryCode.displayName}">FAST</option>
+  </select>
+</div>
+<hr class="my-4">
+```
+
+***
+# 14. 메시지, 국제화
+### 14.1 메시지
+* html파일에 메시지가 하드코딩 되어 있기 때문에, 단어 변경을 위해서 모든 파일을 변경해야한다.
+* 아래와 같은 파일을 만들어 메시지 관리용 파일로 관리할 수 있다.
+```
+//message.properties
+item=상품
+item.id=상품 ID
+item.itemName=상품명
+item.price=가격
+item.quantity=수량
+```
+* 그럼 아래와 같이 사용할 수 있다.
+`<label for="itemName" th:text="#{item.itemName}"></label>`
+
+### 14.2 국제화
+* 나라별로 메시지를 관리할 수있다.
+
+```
+//messages_en.properties
+item=Item
+item.id=Item ID
+item.itemName=Item Name
+item.price=price
+item.quantity=quantity
+```
+```
+//messages_ko.properties
+item=상품
+item.id=상품 ID
+item.itemName=상품명
+item.price=가격
+item.quantity=수량
+```
+
+### 14.3. 스프링 메시지 소스 설정
+* 메시지 관리 기능을 사용하기 위해선 `MessageSoruce`를 스프링 빈으로 등록하면 된다.
+* 구현체인 `ResourceBundleMessageSoruce`를 스프링 빈으로 등록하면된다.
+``` java
+@Bean
+public MessageSource messageSource() {
+  ResourceBundleMessageSource messageSource = new
+  ResourceBundleMessageSource();
+  messageSource.setBasenames("messages", "errors");
+  messageSource.setDefaultEncoding("utf-8");
+  return messageSource;
+}
+```
+* `basenames` : 설정 파일의 이름을 지정한다.
+  + `messages`로 지정하면 `messages.properties` 파일을 읽어서 사용한다.
+  + 추가로 국제화 기능을 적용하려면 `messages_en.properties` , `messages_ko.properties` 와 같이 파일명 마지막에 언어 정보를 주면된다. 만약 찾을 수 있는 국제화 파일이 없으면 `messages.properties` (언어정보가 없는 파일명)를 기본으로 사용한다.
+  + 파일의 위치는 `/resources/messages.properties` 에 두면 된다.
+  + 여러 파일을 한번에 지정할 수 있다. 여기서는 `messages` , `errors` 둘을 지정했다.
+ 
+* `defaultEncoding` : 인코딩 정보를 지정한다. `utf-8`을 사용한다.
+
+##### 스프링 부트
+스프링 부트를 사용하면 스프링부트가 `MessageSource`를 자동으로 스프링 빈으로 등록한다.
+
+
+`application.properties`
+```
+spring.messages.basename=messages,config.i18n.messages
+```
+* 위와 같이 스프링 부트에서 메시지 소스를 설정할 수 있다.
+* `MessageSource` 를 스프링 빈으로 등록하지 않고, 스프링 부트와 관련된 별도의 설정을 하지 않으면 `messages` 라는 이름으로 기본 등록된다. 따라서 `messages_en.properties` , `messages_ko.properties` ,`messages.properties` 파일만 등록하면 자동으로 인식된다.
+
+### 14.4.
+
 
