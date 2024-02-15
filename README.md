@@ -1165,6 +1165,349 @@ spring.messages.basename=messages,config.i18n.messages
 * 위와 같이 스프링 부트에서 메시지 소스를 설정할 수 있다.
 * `MessageSource` 를 스프링 빈으로 등록하지 않고, 스프링 부트와 관련된 별도의 설정을 하지 않으면 `messages` 라는 이름으로 기본 등록된다. 따라서 `messages_en.properties` , `messages_ko.properties` ,`messages.properties` 파일만 등록하면 자동으로 인식된다.
 
-### 14.4.
+### 14.4. 스프링 메시지 소스 사용
+##### 테스트 코드 설명
+```java
+@SpringBootTest
+public class MessageSourceTest {
+  @Autowired
+  MessageSource ms;
+
+  @Test
+  void helloMessage() {
+    String result = ms.getMessage("hello", null, null);
+    assertThat(result).isEqualTo("안녕");
+  }
+}
+```
+* `ms.getMessage("hello", null, null)`
+  + **code**: `hello`
+  + **args**: `null`
+  + **locale**: `null`
+* `locale` 정보가 없으면 `basename`에서 설정한 기본 이름 메시지 파일을 조회한다.
+* `basename`으로 `messages`를 지정했으므로 `messages.properties` 파일에서 데이터를 조회한다.
+
+##### 메시지가 없는 경우, 기본메시지
+``` java
+```java
+@Test
+void notFoundMessageCode() {
+  assertThatThrownBy(() -> ms.getMessage("no_code", null, null)).isInstanceOf(NoSuchMessageException.class);
+}
+@Test
+void notFoundMessageCodeDefaultMessage() {
+  String result = ms.getMessage("no_code", null, "기본 메시지", null);
+  assertThat(result).isEqualTo("기본 메시지");
+}
+```
+* 메시지가 없는 경우에는 `NoSuchMessageException`이 발생한다.
+* 메시지가 없어도 기본메시지(`defaultMessage`) 매개변수를 사용하면 기본메시지가 반환된다.
+
+##### 매개변수 사용
+``` java
+@Test
+void argumentMessage() {
+  String result = ms.getMessage("hello.name", new Object[]{"Spring"}, null);
+  assertThat(result).isEqualTo("안녕 Spring");
+}
+```
+* 다음 메시지의 {0} 부분은 매개변수를 전달해서 치환할 수 있다.
+* `hello.name=안녕 {0}` ➡️ Spring 단어를 매개변수로 전달 ➡️ `안녕 Spring`
+
+##### 국제화 파일 선택
+* locale 정보를 기반으로 국제화 파일을 선택한다.
+* Locale이 `en_US`의 경우 `message_en_US` ➡️ `message_en` ➡️ `messages` 순서로 찾는다.
+* `Locale`에 맞추어 구체적인 것이 있으면 구체적인 것을 찾고, 없으면 디폴트를 찾는다고 이해하면 된다.
+
+### 14.5. 웹 어플리케이션에 메시지 적용하기
+##### messages.properties
+```
+label.item=상품
+label.item.id=상품 ID
+label.item.itemName=상품명
+label.item.price=가격
+label.item.quantity=수량
+
+page.items=상품 목록
+page.item=상품 상세
+page.addItem=상품 등록
+page.updateItem=상품 수정
+
+button.save=저장
+button.cancel=취소
+```
+
+##### 타임리프 메시지 적용
+* #{...} : `#{label.item}`으로 적용
+* 렌더링 전 : `<div th:text="#{label.item}"></div>`
+* 렌더링 후 : `<div> 상품 </div>`
+
+### 14.6. 웹 어플리케이션 국제화 적용하기
+##### messages_en.properties
+```
+label.item=Item
+label.item.id=Item ID
+label.item.itemName=Item Name
+label.item.price=price
+label.item.quantity=quantity
+
+page.items=Item List
+page.item=Item Detail
+page.addItem=Item Add
+page.updateItem=Item Update
+
+button.save=Save
+button.cancel=Cancel
+```
+
+##### 스프링의 국제화 메시지 선택
+* 스프링도 `Locale` 정보를 알아야 언어를 선택할 수 있다.
+* 스프링은 언어 선택시 기본으로 `Accept-Language`헤더의 값을 사용한다.
+
+##### LocaleResolver
+* 스프링은 `Locale` 선택 방식을 변경할 수 있도록 `LocaleResolver` 라는 인터페이스를 제공하는데, 스프링 부트는 기본으로 `Accept-Language` 를 활용하는 `AcceptHeaderLocaleResolver` 를 사용한다.
+
+***
+# 15. 검증1 - Validation
+### 15.1. 검증 직접 처리 로직 V1
+![image](https://github.com/helloJosh/springmvc-itemservice-toy/assets/37134368/192cbce8-f3ed-47d9-b666-f45b57eb6002)
+![image](https://github.com/helloJosh/springmvc-itemservice-toy/assets/37134368/fdf63b67-d647-48f5-b1ce-8f7b26b22809)
+* 고객이 상품 등록 폼에서 상품명을 입력하지 않거나, 가격, 수량 등이 너무 작거나 커서 검증 범위를 넘어서면, 서버 검증 로직이  실패해야한다.
+* 검증에 실패한 경우 고객에게 다시 상품 등록 폼을 보여주고, 어떤 값을 잘못 입력했는지 친절하게 알려줘야한다.
+
+### 15.2. 검즘 직접 처리 -개발
+#### 15.2.1. 상품 등록 검증
+##### ValidationItemControllerV1 - addItem()
+```java
+@PostMapping("/add")
+public String addItem(@ModelAttribute Item item, RedirectAttributes redirectAttributes, Model model) {
+  //검증 오류 결과를 보관
+  Map<String, String> errors = new HashMap<>();
+
+  //검증 로직
+  if (!StringUtils.hasText(item.getItemName())) {
+    errors.put("itemName", "상품 이름은 필수입니다.");
+  }
+  if (item.getPrice() == null || item.getPrice() < 1000 || item.getPrice() > 1000000) {
+    errors.put("price", "가격은 1,000 ~ 1,000,000 까지 허용합니다.");
+  }
+  if (item.getQuantity() == null || item.getQuantity() > 9999) {
+    errors.put("quantity", "수량은 최대 9,999 까지 허용합니다.");
+  }
+
+  //특정 필드가 아닌 복합 룰 검증
+  if (item.getPrice() != null && item.getQuantity() != null) {
+    int resultPrice = item.getPrice() * item.getQuantity();
+    if (resultPrice < 10000) {
+      errors.put("globalError", "가격 * 수량의 합은 10,000원 이상이어야 합니다. 현재값 = " + resultPrice);
+    }
+  }
+
+  //검증에 실패하면 다시 입력 폼으로
+  if (!errors.isEmpty()) {
+    model.addAttribute("errors", errors);
+    return "validation/v1/addForm";
+  }
+
+  //성공 로직
+  Item savedItem = itemRepository.save(item);
+  redirectAttributes.addAttribute("itemId", savedItem.getId());
+  redirectAttributes.addAttribute("status", true);
+
+  return "redirect:/validation/v1/items/{itemId}";
+}
+```
+* 검증 오류 보관 : `Map<String, String> errors = new HashMap<>();`
+* 특정 필드의 범위를 넘어서는 검증 로직 : `globalError`라는 `key` 사용
+* 검증에 실패하면 다시 입력 폼으로 뷰 템플릿으로 보낸다.
+
+##### addForm.html - 검증 추가
+```html
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head>
+    <meta charset="utf-8">
+    <link th:href="@{/css/bootstrap.min.css}" href="../css/bootstrap.min.css" rel="stylesheet">
+    <style>
+    .container {max-width: 560px;}
+    .field-error {border-color: #dc3545;color: #dc3545;}
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+    <div class="py-5 text-center">
+      <h2 th:text="#{page.addItem}">상품 등록</h2>
+    </div>
+    <form action="item.html" th:action th:object="${item}" method="post">
+      <div th:if="${errors?.containsKey('globalError')}">
+        <p class="field-error" th:text="${errors['globalError']}">전체 오류 메시지</p>
+      </div>
+  
+      <div>
+        <label for="itemName" th:text="#{label.item.itemName}">상품명</label>
+        <input type="text" id="itemName" th:field="*{itemName}" th:class="${errors?.containsKey('itemName')} ? 'form-control field-error' : 'form-control'" class="form-control" placeholder="이름을 입력하세요">
+        <div class="field-error" th:if="${errors?.containsKey('itemName')}" th:text="${errors['itemName']}">
+        상품명 오류
+        </div>
+      </div>
+  
+      <div>
+        <label for="price" th:text="#{label.item.price}">가격</label>
+        <input type="text" id="price" th:field="*{price}" th:class="${errors?.containsKey('price')} ? 'form-control field-error' : 'form-control'" class="form-control" placeholder="가격을 입력하세요">
+        <div class="field-error" th:if="${errors?.containsKey('price')}" th:text="${errors['price']}">
+        가격 오류
+        </div>
+      </div>
+  
+      <div>
+        <label for="quantity" th:text="#{label.item.quantity}">수량</label>
+        <input type="text" id="quantity" th:field="*{quantity}" th:class="${errors?.containsKey('quantity')} ? 'form-control field-error' : 'form-control'" class="form-control" placeholder="수량을 입력하세요">
+        <div class="field-error" th:if="${errors?.containsKey('quantity')}" th:text="${errors['quantity']}">
+        수량 오류
+        </div>
+      </div>
+  
+      <hr class="my-4">
+        <div class="row">
+        <div class="col">
+        <button class="w-100 btn btn-primary btn-lg" type="submit" th:text="#{button.save}">저장</button>
+        </div>
+        <div class="col">
+        <button class="w-100 btn btn-secondary btn-lg" onclick="location.href='items.html'" th:onclick="|location.href='@{/validation/v1/items}'|" type="button" th:text="#{button.cancel}">취소</button>
+        </div>
+      </div>
+    </form>
+    </div> <!-- /container -->
+  </body>
+</html>
+```
+
+* 글로벌 오류 메시지 : 오류 메시지는 `errors`에 내용이 있을 때만 출력된다. 타임리프의 `th:if`를 사용하면 조건에 만족할 때만 해당 HTML 태그를 출력할 수 있다.
+> 참고 **Safe Navigation Operator** <br/>
+> 등록폼에 진입한 시점에는 `errors`가 없기 때문에 `errors.containsKey()`를 호출하는 순간 `NullPointerException`이 발생한다
+> `errors?.` 은 `errors` 가 `null` 일때 `NullPointerException` 이 발생하는 대신, `null` 을 반환하는 문법이다.
+> 스프링 SpringEL이 제공하는 문법이다.
+
+* 필드 오류 처리 : `classappend`을 사용해서 해당 필드에 오류가 있으면 `field-error` 라는 클래스 정보를 더해서 폼의 색깔을 빨간색으로 강조한다. 만약 값이 없으면 `_` (No-Operation)을 사용해서 아무것도 하지 않는다.
+``` html
+<input type="text" th:classappend="${errors?.containsKey('itemName')} ? 'fielderror' : _" class="form-control">
+```
+* 필드오류 처리 - 메시지 : 글로벌 오류 메시지에서 설명한 내용과 동일하고, 필드 오류를 대상으로 한다.
+
+#### 15.2.2. 문제점
+* 뷰 템플릿에서 중복 처리가 많다.
+* 타임 오류 처리가 안된다. `Item`의 `price`, `quantity` 같은 숫자 필드는 타입이 Integer 이므로 문자 타입으로 설정하는 것이 불가능하다. 또한 숫자 타입에 문자가 들어오면 400 예외가 발생하며 오류페이지를 띄운다
+* `Item` 의 `price` 에 문자를 입력하는 것 처럼 타입 오류가 발생해도 고객이 입력한 문자를 화면에 남겨야 한다.
+* 결국 고객이 입력한 값도 어딘가에 별도로 관리가 되어야 한다.
+
+### 15.3. 오류검증 V2
+#### 15.3.1. BindingResult1
+##### ValidationItemControllerV2 - addItemV1
+```java
+@PostMapping("/add")
+public String addItemV1(@ModelAttribute Item item, BindingResult bindingResult, RedirectAttributes redirectAttributes) {
+  if (!StringUtils.hasText(item.getItemName())) {
+    bindingResult.addError(new FieldError("item", "itemName", "상품 이름은 필수입니다."));
+  }
+  if (item.getPrice() == null || item.getPrice() < 1000 || item.getPrice() >1000000) {
+    bindingResult.addError(new FieldError("item", "price", "가격은 1,000 ~ 1,000,000 까지 허용합니다."));
+  }
+  if (item.getQuantity() == null || item.getQuantity() >= 10000) {
+    bindingResult.addError(new FieldError("item", "quantity", "수량은 최대 9,999 까지 허용합니다."));
+  }
+  //특정 필드 예외가 아닌 전체 예외
+  if (item.getPrice() != null && item.getQuantity() != null) {
+    int resultPrice = item.getPrice() * item.getQuantity();
+    if (resultPrice < 10000) {
+      bindingResult.addError(new ObjectError("item", "가격 * 수량의 합은 10,000원 이상이어야 합니다. 현재 값 = " + resultPrice));
+    }
+  }
+  if (bindingResult.hasErrors()) {
+    log.info("errors={}", bindingResult);
+    return "validation/v2/addForm";
+  }
+  //성공 로직
+  Item savedItem = itemRepository.save(item);
+  redirectAttributes.addAttribute("itemId", savedItem.getId());
+  redirectAttributes.addAttribute("status", true);
+  return "redirect:/validation/v2/items/{itemId}";
+}
+```
+> **주의** `BindingResult bindingResult` 파라미터의 위치는 `@ModelAttribute Item item` 다음에 와야한다.
+* FieldError 생성자 요약 : `public FieldError(String objectName, String field, String defaultMessage) {}`
+* 필드에 오류가 있으면 `FieldError` 객체를 생성해서 `bindingResult` 에 담아두면 된다.
+  + `objectName` : `@ModelAttribute` 이름
+  + `field`: 오류가 발생한 필드 이름
+  + `defaultMessage`: 오류 기본 메시지
+ 
+* 글로벌 오류 - OjbectError : `bindingResult.addError(new ObjectError("item", "가격 * 수량의 합은 10,000원 이상이어야합니다. 현재 값 = " + resultPrice));`
+* ObjectError 생성자 요약 : `public ObjectError(String objectName, String defaultMessage) {}`
+  + `objectName` : `@ModelAttribute`의 이름
+  + `defaultMessage` : 오류 기본 메시지
+ 
+```html
+<form action="item.html" th:action th:object="${item}" method="post">
+  <div th:if="${#fields.hasGlobalErrors()}">
+    <p class="field-error" th:each="err : ${#fields.globalErrors()}" th:text="${err}">글로벌 오류 메시지</p>
+  </div>
+
+  <div>
+    <label for="itemName" th:text="#{label.item.itemName}">상품명</label>
+    <input type="text" id="itemName" th:field="*{itemName}" th:errorclass="field-error" class="form-control" placeholder="이름을 입력하세요">
+    <div class="field-error" th:errors="*{itemName}">
+      상품명 오류
+    </div>
+  </div>
+
+  <div>
+    <label for="price" th:text="#{label.item.price}">가격</label>
+    <input type="text" id="price" th:field="*{price}" th:errorclass="field-error" class="form-control" placeholder="가격을 입력하세요">
+    <div class="field-error" th:errors="*{price}">
+      가격 오류
+    </div>
+  </div>
+
+  <div>
+    <label for="quantity" th:text="#{label.item.quantity}">수량</label>
+    <input type="text" id="quantity" th:field="*{quantity}" th:errorclass="field-error" class="form-control" placeholder="수량을 입력하세요">
+    <div class="field-error" th:errors="*{quantity}">
+      수량 오류
+    </div>
+  </div>
+```
+##### 타임리프 스프링 검증 오류 통합 기능
+* `#fields` : `#fields`로 `BindingResult`가 제공하는 검증 오류에 접근할 수 있다.
+* `th:errors`: 해당 필드에 오류가 있는 경우에 태그를 출력한다. `th:if`의 편의 버전이다.
+* `th:errorclass`: `th:field`에서 지정한 필드에 오류가 있으면 `class` 정보를 추가한다.
+
+
+### 15.4. BindingResult2
+* 스프링이 제공하는 검증 오류를 보관하는 객체이다. 검증 오류가 발생하면 여기에 보관하면 된다.
+* `BindingResult` 가 있으면 `@ModelAttribute` 에 데이터 바인딩 시 오류가 발생해도 컨트롤러가 호출된다!
+
+##### @ModelAttribute에 바인딩 시 타입 오류가 발생하면?
+* `BindingResultl`가 없으면 ➡️ 400 오류가 발생하면서 컨트롤러가 호출되지 않고, 오류 페이지로 이동한다.
+* `BindingResultl`가 있으면 ➡️ 오류정보(`FieldError`)를 `BindingResult`에 담아서 컨트롤러를 정상 호출한다.
+
+##### BindingResult에 검증 오류를 적용하는 3가지 방법
+* `@ModelAttribute`의 객체에 타입 오류 등으로 바인딩이 실패하는 경우 스프링이 `FieldError` 생성해서 `BindingResult`에 넣어준다
+* 개발자가 직접 넣어준다
+* `Validator`사용 ➡️ 뒤에 설명
+
+##### 타입 오류 확인
+* 숫자가 입력되어야할 곳에 문자를 입력해서 타입을 다르게해 `BindingResult`를 호출하고 `bindingResult`의 값을 확인해보자
+
+> 주의! <br/>
+> `BindingResult`는 검증할 대상 바로 다음에 와야한다. 예를 들어 `@ModelAttribute Item item` 뒤에 바로 `BindingResutl`가 와야한다. <br/>
+> `BindingResult`는 Model에 자동으로 포함된다.
+
+##### BindingResult와 Errors
+* `org.springframework.validation.Errors`
+* `org.springframework.validation.BindingResult `
+* `BindingResult`는 인터페이스고 `Errors` 인터페이스를 상속받고 있다.
+* 구현체는 `BeanPropertyBindingResult`이다. 둘다 구현하고 있어서 `BindingResult` 대신에 `Errors`를 사용해도 된다.
+* `Errors` 인터페이스는 단순한 오류저장과 조회기능을 제공하지만 `BindingResult`는 추가적인 기능을 제공한다.
+* 관례상 `BindingResult`를 많이 사용한다.
 
 
