@@ -1510,4 +1510,98 @@ public String addItemV1(@ModelAttribute Item item, BindingResult bindingResult, 
 * `Errors` 인터페이스는 단순한 오류저장과 조회기능을 제공하지만 `BindingResult`는 추가적인 기능을 제공한다.
 * 관례상 `BindingResult`를 많이 사용한다.
 
+### 15.4. FieldError, ObjectError
+* 오류가 나올 시 입력한 값이 남아 있게해야한다.
+* 이것을 `FieldError`, `ObjectError`로 해결할 수 있다.
 
+```java
+@PostMapping("/add")
+public String addItemV2(@ModelAttribute Item item, BindingResult bindingResult,RedirectAttributes redirectAttributes) {
+  if (!StringUtils.hasText(item.getItemName())) {
+    bindingResult.addError(new FieldError("item", "itemName", item.getItemName(), false, null, null, "상품 이름은 필수입니다."));
+  }
+  if (item.getPrice() == null || item.getPrice() < 1000 || item.getPrice() > 1000000) {
+    bindingResult.addError(new FieldError("item", "price", item.getPrice(), false, null, null, "가격은 1,000 ~ 1,000,000 까지 허용합니다."));
+  }
+  if (item.getQuantity() == null || item.getQuantity() >= 10000) {
+    bindingResult.addError(new FieldError("item", "quantity", item.getQuantity(), false, null, null, "수량은 최대 9,999 까지 허용합니다."));
+  }
+  //특정 필드 예외가 아닌 전체 예외
+  if (item.getPrice() != null && item.getQuantity() != null) {
+    int resultPrice = item.getPrice() * item.getQuantity();
+    if (resultPrice < 10000) {
+      bindingResult.addError(new ObjectError("item", null, null, "가격 * 수량의 합은 10,000원 이상이어야 합니다. 현재 값 = " + resultPrice));
+    }
+  }
+  if (bindingResult.hasErrors()) {
+    log.info("errors={}", bindingResult);
+    return "validation/v2/addForm";
+  }
+  //성공 로직
+  Item savedItem = itemRepository.save(item);
+  redirectAttributes.addAttribute("itemId", savedItem.getId());
+  redirectAttributes.addAttribute("status", true);
+  return "redirect:/validation/v2/items/{itemId}";
+}
+```
+##### FieldError 생성자
+* `public FeildError(String objectName, String field, String defaultMessage);`
+* `public FeildError(String objectName, String field, @Nullable Object rejectedValue, boolean bindingFailure, @Nullable String[] codes, @Nullable Object[] arguments, @Nullable String defaultMessage);
+
+##### 파라미터 목록
+* `objectName` : 오류가 발생한 객체 이름
+* `field` : 오류 필드
+* `rejectedValue` : 사용자가 입력한 값(거절된 값)
+* `bindingFailure` : 타입오류 같은 바인딩 실패인지, 검증 실패인지 구분 값
+* `codes` : 메시지 코드
+* `arguments` : 메시지에서 사용하는 인자
+* `defaultMessage` : 기본 오류 메시지
+> `ObjectError`도 유사하게 두가지 생성자를 제공한다.
+
+### 15.5. 오류코드와 메시지 처리1
+##### errors 메시지 파일 생성
+* `messages.properties`를 사용해도 되지만, 오류 메시지를 구분하기 쉽게 `errors.properties`라는 별도의 파일에 관리한다.
+##### application.properties 설정 추가
+`spring.messages.basename=messages,errors`
+##### errors.properties 추가
+```
+required.item.itemName=상품 이름은 필수입니다.
+range.item.price=가격은 {0} ~ {1} 까지 허용합니다.
+max.item.quantity=수량은 최대 {0} 까지 허용합니다.
+totalPriceMin=가격 * 수량의 합은 {0}원 이상이어야 합니다. 현재 값 = {1}
+```
+> errors_en.properties를 통해 국제화 처리도 가능하다.
+
+##### ValidationItemControllerV2 - addItemV3()
+``` java
+@PostMapping("/add")
+public String addItemV3(@ModelAttribute Item item, BindingResult bindingResult, RedirectAttributes redirectAttributes) {
+  if (!StringUtils.hasText(item.getItemName())) {
+    bindingResult.addError(new FieldError("item", "itemName", item.getItemName(), false, new String[]{"required.item.itemName"}, null, null));
+  }
+  if (item.getPrice() == null || item.getPrice() < 1000 || item.getPrice() > 1000000) {
+    bindingResult.addError(new FieldError("item", "price", item.getPrice(), false, new String[]{"range.item.price"}, new Object[]{1000, 1000000}, null));
+  }
+  if (item.getQuantity() == null || item.getQuantity() > 10000) {
+    bindingResult.addError(new FieldError("item", "quantity", item.getQuantity(), false, new String[]{"max.item.quantity"}, new Object[] {9999}, null));
+  }
+  //특정 필드 예외가 아닌 전체 예외
+  if (item.getPrice() != null && item.getQuantity() != null) {
+    int resultPrice = item.getPrice() * item.getQuantity();
+    if (resultPrice < 10000) {
+      bindingResult.addError(new ObjectError("item", new String[] {"totalPriceMin"}, new Object[]{10000, resultPrice}, null));
+    }
+  }
+  if (bindingResult.hasErrors()) {
+    log.info("errors={}", bindingResult);
+    return "validation/v2/addForm";
+  }
+  //성공 로직
+  Item savedItem = itemRepository.save(item);
+  redirectAttributes.addAttribute("itemId", savedItem.getId());
+  redirectAttributes.addAttribute("status", true);
+  return "redirect:/validation/v2/items/{itemId}";
+}
+```
+
+### 15.6. 오류코드와 메시지 처리2
