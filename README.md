@@ -1918,3 +1918,130 @@ public class ItemServiceApplication implements WebMvcConfigurer {
 }
 ```
 * 이렇게 글로벌 설정을 추가할 수 있다. 기존 컨트롤러의 `@InitBinder` 를 제거해도 글로벌 설정으로 정상 동작하는 것을 확인할 수 있다.
+***
+# 16. Bean Validation
+### 16.1. Bean Validation - 소개
+* 특정 필드에 대한 검증 로직은 매우 일반적인 로직이다.
+```java
+public class Item {
+  private Long id;
+
+  @NotBlank
+  private String itemName;
+
+  @NotNull
+  @Range(min = 1000, max = 1000000)
+  private Integer price;
+
+  @NotNull
+  @Max(9999)
+  private Integer quantity;
+  //...
+}
+```
+* 이런 검증 로직을 모든 프로젝트에 적용할 수 있게 공통화하고, 표준화 한 것이 Bean Validation이다.
+
+##### Bean Validation
+* Bean Validation은 특정한 구현체가 아니라 Bean Validation 2.0(JSR-380)이라는 기술 표준이다.
+* Bean Validation을 구현한 기술 중에 일반적으로 사용하는 구현체는 하이버네이트 Validatior이다.
+
+### 16.2. Bean Validation - 시작
+##### Bean Validation 의존관계 추가
+* `build.gradle` 에 `implementation 'org.springframework.boot:spring-boot-starter-validation'` 추가
+* `jakarta.validation-api` : bean validation 인터페이스
+* `hibernate-validator` : 구현체
+
+### 16.3. Bean Validation Annotation 예시
+```java
+@Data
+public class Item {
+  private Long id;
+  @NotBlank
+  private String itemName;
+
+  @NotNull
+  @Range(min = 1000, max = 1000000)
+  private Integer price;
+
+  @NotNull
+  @Max(9999)
+  private Integer quantity;
+
+  public Item() {
+  }
+  public Item(String itemName, Integer price, Integer quantity) {
+    this.itemName = itemName;
+    this.price = price;
+    this.quantity = quantity;
+  }
+}
+```
+* `@NotBlank` : 빈값 + 공백만 있는 경우를 허용하지 않는다.
+* `@NotNull` : `null`을 허용하지 않는다.
+* `@Range(min =1000, max =1000000)`: 범위 안의 값이어야한다.
+* `@Max(9999)`: 최대 9999 까지만 허용한다.
+
+> 참고 `javax.validation`으로 시작하면 특정 구현에 관계없이 제공되는 표준 인터페이스이다. <br/>
+> `org.hibernate.validator`로 시작하면 validator 구현체를 사용할 때만 제공되는 검증 기능이다.
+
+### 16.4. Bean Validation - 스프링 적용
+```java
+@Slf4j
+@Controller
+@RequestMapping("/validation/v3/items")
+@RequiredArgsConstructor
+public class ValidationItemControllerV3 {
+  private final ItemRepository itemRepository;
+  @GetMapping
+  public String items(Model model) {
+    List<Item> items = itemRepository.findAll();
+    model.addAttribute("items", items);
+    return "validation/v3/items";
+  }
+  @GetMapping("/{itemId}")
+  public String item(@PathVariable long itemId, Model model) {
+    Item item = itemRepository.findById(itemId);
+    model.addAttribute("item", item);
+    return "validation/v3/item";
+  }
+  @GetMapping("/add")
+  public String addForm(Model model) {
+    model.addAttribute("item", new Item());
+    return "validation/v3/addForm";
+  }
+  @PostMapping("/add")
+  public String addItem(@Validated @ModelAttribute Item item, BindingResult bindingResult, RedirectAttributes redirectAttributes) {
+    if (bindingResult.hasErrors()) {
+      log.info("errors={}", bindingResult);
+      return "validation/v3/addForm";
+    }
+    //성공 로직
+    Item savedItem = itemRepository.save(item);
+    redirectAttributes.addAttribute("itemId", savedItem.getId());
+    redirectAttributes.addAttribute("status", true);
+    return "redirect:/validation/v3/items/{itemId}";
+  }
+  @GetMapping("/{itemId}/edit")
+  public String editForm(@PathVariable Long itemId, Model model) {
+    Item item = itemRepository.findById(itemId);
+    model.addAttribute("item", item);
+    return "validation/v3/editForm";
+  }
+  @PostMapping("/{itemId}/edit")
+  public String edit(@PathVariable Long itemId, @ModelAttribute Item item) {
+    itemRepository.update(itemId, item);
+    return "redirect:/validation/v3/items/{itemId}";
+  }
+}
+```
+* 기존 등록한 ItemValidator 추가한것을 제거
+
+### 16.5. 스프링 MVC에서 Bean Validator의 사용
+* 스프링 부트가 `spring-boot-starter-validation` 라이브러리를 넣으면 자동으로 Bean Validator를 인지하고 스프링에 통합한다.
+* `LocalValidatorFactoryBean`을 글로벌 Validator로 등록한다.
+  + `@NotNull` 같은 애노테이션을 보고 검증 을 수행한다.
+  + 따라서 `@Valid`, `@Validated`만 적용하면된다.
+  + 검증오류가 발생하면, `FieldError`, `ObjectError`를 생성해서 `BindingResult`에 담아둔다.
+ 
+> 주의! 직접 글로벌 Validator를 등록하면 스프링부트는 Bean Validator를 글로벌 Validator로 등록하지 않는다.
+
